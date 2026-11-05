@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mapainversiones-cali"
+version = "0.1.0"
+description = "Pipeline ELT de MapaInversiones Cali"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "numpy==1.26.4",
+  "pandas==2.1.4",
+  "openpyxl==3.1.5",
+  "pyodbc==5.2.0",
+  "python-dotenv==1.1.1",
+  "PyYAML==6.0.2",
+  "requests==2.32.4",
+  "SQLAlchemy==2.0.42",
+]
+
+[project.optional-dependencies]
+azure = ["azure-identity==1.24.0", "azure-storage-blob==12.26.0"]
+test = ["pytest>=8,<9"]
+
+[project.scripts]
+mapainversiones-cali = "mapainversiones_cali.main:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
