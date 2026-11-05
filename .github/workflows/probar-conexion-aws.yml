@@ -26,4 +26,8 @@ jobs:
       - name: Comprobar identidad en AWS
         run: aws sts get-caller-identity
       - name: Ver repositorios ECR
-        run: aws ecr describe-repositories --region "${{ vars.AWS_REGION }}"
+        run: |
+          aws ecr describe-images \
+            --region "${{ vars.AWS_REGION }}" \
+            --repository-name "aca-test-portal-transparencia-ecr-etl" \
+            --max-items 1
