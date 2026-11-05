@@ -25,3 +25,5 @@ jobs:
 
       - name: Comprobar identidad en AWS
         run: aws sts get-caller-identity
+      - name: Ver repositorios ECR
+        run: aws ecr describe-repositories --region "${{ vars.AWS_REGION }}"
