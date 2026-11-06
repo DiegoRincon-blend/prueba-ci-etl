@@ -67,7 +67,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    # Los despliegues se encolan, nunca se cancelan a medias.
     concurrency:
       group: deploy-mapainversiones-cali
       cancel-in-progress: false
