@@ -60,18 +60,30 @@ DB_PASSWORD=<contraseña>
 
 ## 4. Preparar archivos de entrada
 
-Los archivos Excel de cada período deben colocarse en `data/AAAAMM/` (esta carpeta no está en el repositorio):
+Los archivos Excel se leen de Amazon S3. Cada carga (mes o entrega) es una subcarpeta ("lote") con
+**siempre los mismos nombres de archivo**:
 
 ```
-data/
-└── 202601/
+s3://<S3_BUCKET>/<S3_RAW_PREFIX>/            (por defecto: raw/)
+└── 202601/                                  ← lote
     ├── CUIPO.xlsx
     ├── CATALOGO_DE_PRODUCTOS.xlsx
     ├── BASE BID.xlsx
     └── REPORTE_RPC.xlsx
 ```
 
-Luego actualizar en `config/config.yaml` las rutas `path` y el campo `periodo` de cada `extract_sources` con el período nuevo.
+Para procesar una carga nueva **no se edita el YAML**: se sube la subcarpeta y se indica el lote
+con `--lote 202602` (o la variable `LOTE`). El nombre del lote se usa como `periodo` de las filas
+cargadas; una fuente puede fijar otro con `details.periodo`.
+
+Variables (ver `.env.example`): `S3_BUCKET`, `S3_RAW_PREFIX` (opcional) y `LOTE`. No hay credenciales
+AWS en el proyecto: `boto3` usa la cadena por defecto (rol IAM de la tarea en AWS; en local un perfil
+SSO o credenciales temporales `AWS_*`). El rol necesita `s3:GetObject` sobre `<prefijo>/*` y `s3:ListBucket`
+si se desea distinguir "no existe" de "sin permiso".
+
+Antes de cargar cualquier tabla, la etapa `extract` valida **todo el lote**: que existan los archivos
+de las fuentes habilitadas y que cada libro tenga la hoja esperada. Si falta algo, el pipeline termina
+con error listando todos los problemas y no modifica la base. Una hoja sin filas también es error.
 
 ---
 
@@ -88,6 +100,9 @@ python -m mapainversiones_cali.main --run contratos_full
 
 # Solo exportar datos abiertos (sin reprocesar staging)
 python -m mapainversiones_cali.main --run opendata_full
+
+# Indicar el lote (subcarpeta de S3) a procesar
+python -m mapainversiones_cali.main --run presupuesto_extract 
 
 # Ejecución manual por dominio y etapa
 python -m mapainversiones_cali.main --domain presupuesto --stage extract
@@ -108,8 +123,8 @@ Las rutas relativas se resuelven desde el directorio de ejecución; ejecutar des
 ```mermaid
 flowchart TD
     CFG["config/config.yaml + includes opcionales<br/>.env: conexión SQL Server<br/>CLI: --run / --domain / --stage"] --> MAIN["src/mapainversiones_cali/main.py<br/>Seleccionar dominios y etapas"]
-    MAIN --> EX["1. extract<br/>src/mapainversiones_cali/extract/xlsx_extractor.py<br/>Leer hojas, detectar encabezado,<br/>normalizar columnas y agregar periodo"]
-    INPUT["Origen configurado (Windows)<br/>G:/My Drive/BID/COL/Cali/PruebaCali/202512/<br/>CUIPO.xlsx · CATALOGO_DE_PRODUCTOS.xlsx<br/>BASE BID.xlsx · REPORTE_RPC.xlsx"] --> EX
+    MAIN --> EX["1. extract<br/>src/mapainversiones_cali/extract/xlsx_extractor.py<br/>Validar lote, leer hojas, detectar encabezado,<br/>normalizar columnas y agregar periodo"]
+    INPUT["Origen configurado (S3)<br/>s3://S3_BUCKET/raw/LOTE/<br/>CUIPO.xlsx · CATALOGO_DE_PRODUCTOS.xlsx<br/>BASE BID.xlsx · REPORTE_RPC.xlsx"] --> EX
     EX --> LOADER["src/mapainversiones_cali/db_loader_pyodbc.py<br/>Recrear staging como NVARCHAR(MAX)<br/>Insertar por lotes"]
     LOADER --> STG[("SQL Server: DB_NAME.dbo.stg_cali_*")]
     STG --> VALID["2. transform<br/>src/mapainversiones_cali/sql_runner.py ejecuta sql/valid/*.sql<br/>Histórico CUIPO y tablas dbo.Validos*"]
@@ -128,10 +143,11 @@ y los elementos de cada etapa en el orden del YAML. Los perfiles pueden omitir e
 Una excepción detiene el pipeline; cada script SQL tiene su propia transacción,
 sin rollback global de las etapas anteriores.
 
-La configuración actual usa `periodo: "202512"` y rutas absolutas de Windows.
-En Windows esas rutas prevalecen sobre `base_dir: "data"`. En Linux deben adaptarse:
-por ejemplo, `base_dir: "data"` y `path: "202512/CUIPO.xlsx"` para leer
-`MapaInversiones.Datos/data/202512/CUIPO.xlsx`. El campo `periodo` también debe actualizarse.
+Las fuentes usan `source_type: "xlsx"` con `path` = nombre del archivo dentro del lote. Este
+extractor siempre lee de S3: no existe un modo de lectura local para XLSX. El extractor `csv`
+sí sigue disponible para desarrollo con otro `--config`.
+Para repetir una carga basta volver a ejecutar con el mismo lote; ten en cuenta que el cargador
+recrea las tablas staging en cada ejecución (ver `docs/architecture/migracion-aws.md`).
 
 ### Archivos y hojas de origen → tablas staging
 
@@ -140,11 +156,11 @@ Todas estas tablas pertenecen a la base indicada por `DB_NAME` (habitualmente
 
 ```mermaid
 flowchart LR
-    subgraph INPUTS["G:/My Drive/BID/COL/Cali/PruebaCali/202512/"]
+    subgraph INPUTS["s3://S3_BUCKET/raw/LOTE/ (ej. 202601)"]
         F0["CUIPO.xlsx<br/>Hoja: CUIPO"]
         F1["CATALOGO_DE_PRODUCTOS.xlsx<br/>Hoja: Catálogo de Productos"]
-        F2["BASE BID.xlsx<br/>Hoja: Procesos"]
-        F3["BASE BID.xlsx<br/>Hoja: Contratos"]
+        F2["BASE BID.xlsx<br/>Hoja: PROCESOS"]
+        F3["BASE BID.xlsx<br/>Hoja: CONTRATOS"]
         F4["REPORTE_RPC.xlsx<br/>Hoja: REPORTE"]
     end
     F0 --> S0[("dbo.stg_cali_cuipo")]
@@ -250,7 +266,7 @@ flowchart LR
 
 El archivo `config/config.yaml` controla todo el pipeline sin tocar el código:
 
-- **`extract_sources`**: fuentes Excel → tablas staging
+- **`extract_sources`**: fuentes Excel en S3 (`xlsx`) → tablas staging
 - **`transform_models`**: scripts SQL `sql/valid/` (staging → válidos)
 - **`load_models`**: scripts SQL `sql/model/` (válidos → modelo final)
 - **`opendata_exports`**: vistas a exportar como CSV/XLSX
@@ -276,7 +292,7 @@ includes:
 │   ├── main.py                  # Orquestador principal
 │   ├── db_loader_pyodbc.py      # Cargador usado por main.py (SQL Server)
 │   ├── sql_runner.py            # Ejecuta scripts SQL
-│   ├── extract/                 # Extractores (xlsx, csv, api, adls)
+│   ├── extract/                 # Extractores (xlsx [S3], csv, api, adls)
 │   └── opendata_export/         # Exportadores CSV/XLSX
 ├── sql/
 │   ├── valid/                   # Scripts transform (staging → válidos)

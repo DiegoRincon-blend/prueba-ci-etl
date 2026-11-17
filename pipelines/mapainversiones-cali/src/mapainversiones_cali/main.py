@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 
 from .extract.api_extractor import ApiExtractor
 from .extract.csv_extractor import CsvExtractor
-from .extract.xlsx_extractor import XlsxExtractor
+from .extract.xlsx_extractor import XlsxExtractor, cleanup_downloads
 from .opendata_export.generator import generate_opendata
 from .sql_runner import execute_sql_from_file
 
@@ -277,21 +277,61 @@ def _run_external_python(script_path: str):
         raise RuntimeError(f"Script externo termino con codigo {result.returncode}")
 
 
+def _source_details(source: dict, config: dict) -> dict:
+    """Copia los 'details' de la fuente e inyecta el lote de la ejecucion."""
+    details = (source.get("details") or {}).copy()
+    if config.get("lote") and not details.get("lote"):
+        details["lote"] = config["lote"]
+    return details
+
+
+def _preflight_extract_sources(config: dict):
+    """
+    Valida TODO el lote antes de modificar tablas: las fuentes cuyo extractor
+    define 'validate' (ej. xlsx, que siempre lee de S3) deben existir y tener la hoja esperada.
+    Reune todos los errores para informarlos juntos.
+    """
+    errors = []
+    for source in config.get("extract_sources", []):
+        if not source.get("enabled", True) or source["source_type"] == "api_file_py":
+            continue
+        validate = getattr(get_extractor(source["source_type"]), "validate", None)
+        if validate is None:
+            continue
+        try:
+            validate(_source_details(source, config))
+        except Exception as error:
+            errors.append(f"[{source['name']}] {error}")
+    if errors:
+        raise RuntimeError(
+            "Validacion previa del lote fallida; no se modifico ninguna tabla:\n  - " + "\n  - ".join(errors)
+        )
+
+
 def run_extract_stage(config: dict, db_loader: "DBLoader"):
     """
     Ejecuta la etapa de EXTRACT & LOAD TO STAGE:
+      - Valida el lote completo (fuentes con 'validate') antes de cargar nada
       - Itera 'extract_sources'
       - Instancia el extractor en base a 'source_type'
       - Llama extractor.extract(details) y carga a stage con db_loader.load_to_stage(...)
     """
     print(f"\n--- [ETAPA 1: EXTRACT & LOAD TO STAGE] --- [{datetime.now():%Y-%m-%d %H:%M:%S}] ")
+    try:
+        _preflight_extract_sources(config)
+        _run_extract_sources(config, db_loader)
+    finally:
+        cleanup_downloads()
+
+
+def _run_extract_sources(config: dict, db_loader: "DBLoader"):
     for source in config.get("extract_sources", []):
         if not source.get("enabled", True):
             continue
 
         name = source["name"]
         stype = source["source_type"]
-        details = (source.get("details") or {}).copy()
+        details = _source_details(source, config)
 
         print(f"\nProcesando fuente: {name}...")
         try:
@@ -370,6 +410,7 @@ def run_pipeline(args):
 
         selected_domains, selected_stages = _resolve_run_selection(config, args)
         config_to_run = build_execution_config(config, selected_domains, selected_stages)
+        config_to_run["lote"] = os.getenv("PERIODO") 
 
         print(
             " Seleccion aplicada -> "

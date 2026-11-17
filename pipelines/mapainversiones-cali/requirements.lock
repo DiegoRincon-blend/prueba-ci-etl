@@ -4,6 +4,12 @@
 #
 #    pip-compile --cert=None --client-cert=None --index-url=None --no-index --output-file=requirements.lock --pip-args=None pyproject.toml
 #
+boto3==1.43.93
+    # via mapainversiones-cali (pyproject.toml)
+botocore==1.43.93
+    # via
+    #   boto3
+    #   s3transfer
 certifi==2026.10.23
     # via requests
 charset-normalizer==3.5.2
@@ -14,6 +20,10 @@ greenlet==3.5.6
     # via sqlalchemy
 idna==3.20
     # via requests
+jmespath==1.0.1
+    # via
+    #   boto3
+    #   botocore
 numpy==1.26.4
     # via
     #   mapainversiones-cali (pyproject.toml)
@@ -24,8 +34,10 @@ pandas==2.1.4
     # via mapainversiones-cali (pyproject.toml)
 pyodbc==5.2.0
     # via mapainversiones-cali (pyproject.toml)
-python-dateutil==3.0.0
-    # via pandas
+python-dateutil==2.9.0.post0
+    # via
+    #   botocore
+    #   pandas
 python-dotenv==1.1.1
     # via mapainversiones-cali (pyproject.toml)
 pytz==2026.6
@@ -34,6 +46,8 @@ pyyaml==6.0.2
     # via mapainversiones-cali (pyproject.toml)
 requests==2.32.4
     # via mapainversiones-cali (pyproject.toml)
+s3transfer==0.19.2
+    # via boto3
 six==1.17.0
     # via python-dateutil
 sqlalchemy==2.0.42
@@ -41,8 +55,8 @@ sqlalchemy==2.0.42
 typing-extensions==4.16.0
     # via sqlalchemy
 tzdata==2026.6
-    # via
-    #   pandas
-    #   python-dateutil
+    # via pandas
 urllib3==2.8.0
-    # via requests
+    # via
+    #   botocore
+    #   requests

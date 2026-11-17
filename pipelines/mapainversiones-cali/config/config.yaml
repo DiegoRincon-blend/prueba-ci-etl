@@ -2,58 +2,55 @@ project_name: "Pipeline ETL Colombia - Cali"
 version: 2.0
 
 # --- ETAPA 1: EXTRACT (Fuentes a tablas Stage) ---
-extract_sources:   
+# Los XLSX se leen de S3: s3://$S3_BUCKET/$S3_RAW_PREFIX/<lote>/<path>
+# El lote (subcarpeta, ej. 202601) se indica con --lote o la variable LOTE y se
+# usa como 'periodo' salvo que la fuente defina 'periodo' explicitamente.
+extract_sources:
   - name: "CUIPO"
     enabled: true
     source_type: "xlsx"
     target_stage_table: "dbo.stg_cali_cuipo"
     details:
-      base_dir: "data"
-      path: "G:/My Drive/BID/COL/Cali/PruebaCali/202512/CUIPO.xlsx"
-      periodo: "202512"
+      path: "CUIPO.xlsx"
       xlsx_sheet: "CUIPO"
       header: true
+
   - name: "CATALOGO PRODUCTOS"
-    enabled: true
+    enabled: false # Deshabilitado hasta que el lote incluya CATALOGO_DE_PRODUCTOS.xlsx
     source_type: "xlsx"
     target_stage_table: "dbo.stg_cali_catalogo_productos"
     details:
-      base_dir: "data"
-      path: "G:/My Drive/BID/COL/Cali/PruebaCali/202512/CATALOGO_DE_PRODUCTOS.xlsx"
-      periodo: "202512"
+      path: "CATALOGO_DE_PRODUCTOS.xlsx"
       xlsx_sheet: "Catálogo de Productos"
-      header: true  
+      header: true
+
   - name: "PROCESOS"
     enabled: true
     source_type: "xlsx"
     target_stage_table: "dbo.stg_cali_procesos"
     details:
-      base_dir: "data"
-      path: "G:/My Drive/BID/COL/Cali/PruebaCali/202512/BASE BID.xlsx"
-      periodo: "202512"
-      xlsx_sheet: "Procesos"
-      header: true            
+      path: "BASE BID.xlsx"
+      xlsx_sheet: "PROCESOS"
+      header: true
+
   - name: "CONTRATOS"
     enabled: true
     source_type: "xlsx"
     target_stage_table: "dbo.stg_cali_contratos"
     details:
-      base_dir: "data"
-      path: "G:/My Drive/BID/COL/Cali/PruebaCali/202512/BASE BID.xlsx"
-      periodo: "202512"
-      xlsx_sheet: "Contratos"
-      header: true  
+      path: "BASE BID.xlsx"
+      xlsx_sheet: "CONTRATOS"
+      header: true
+
   - name: "REPORTE RPC"
     enabled: true
     source_type: "xlsx"
     target_stage_table: "dbo.stg_cali_reporte_rpc"
     details:
-      base_dir: "data"
-      path: "G:/My Drive/BID/COL/Cali/PruebaCali/202512/REPORTE_RPC.xlsx"
-      periodo: "202512"
+      path: "REPORTE_RPC.xlsx"
       xlsx_sheet: "REPORTE"
-      header: true      
-                  
+      header: true
+
 opendata_exports:
   - name: "DatosAbiertosPresupuestoXProyInv"
     enable: true

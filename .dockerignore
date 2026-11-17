@@ -1,0 +1,9 @@
+.git
+.github
+**/.venv
+**/__pycache__
+**/.env
+**/.env.*
+**/data
+**/src/data/opendata
+**/.pytest_cache
