@@ -24,12 +24,40 @@ jobs:
       - name: Git clone repository
         uses: actions/checkout@v4
 
+      - name: Debug OIDC Token & Variables
+        run: |
+          echo "=== 1. Verificando Variables / Secrets ==="
+          VARS_ROLE="${{ vars.AWS_ROLE_ARN }}"
+          SECRETS_ROLE="${{ secrets.AWS_ROLE_ARN }}"
+          
+          if [ -n "$VARS_ROLE" ]; then
+            echo "✅ Encontrado en vars.AWS_ROLE_ARN: $VARS_ROLE"
+          elif [ -n "$SECRETS_ROLE" ]; then
+            echo "✅ Encontrado en secrets.AWS_ROLE_ARN: $SECRETS_ROLE"
+          else
+            echo "❌ ERROR CRÍTICO: AWS_ROLE_ARN está VACÍA tanto en vars como en secrets."
+            echo "   Verifica si la creaste en GitHub: Settings -> Environments -> dev (o Secrets/Variables del repo)."
+          fi
+
+          echo "AWS_REGION vars: '${{ vars.AWS_REGION }}'"
+          echo "AWS_REGION secrets: '${{ secrets.AWS_REGION }}'"
+
+          echo "=== 2. Inspeccionando Claims del Token OIDC ==="
+          TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
+
+          if [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ]; then
+            echo "$TOKEN" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq '{sub: .sub, aud: .aud, repository: .repository, environment: .environment, ref: .ref}'
+          else
+            echo "❌ No se pudo obtener el token OIDC de GitHub. Verifica que 'permissions: id-token: write' esté activo."
+          fi
+
       - name: Configure AWS Credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_ROLE_ARN || secrets.AWS_ROLE_ARN }}
           role-session-name: GitHubActionsConnectionTest
-          aws-region: ${{ vars.AWS_REGION }}
+          aws-region: ${{ vars.AWS_REGION || secrets.AWS_REGION || 'us-east-1' }}
 
       - name: Test STS Identity
         run: |
