@@ -43,7 +43,7 @@ jobs:
         run: |
           python -m pip install -r requirements.lock
           python -m pip install --no-deps -e .
-          python -m pip install pytest==8.4.2 ruff==0.17.3 pip-audit==2.10.1
+          python -m pip install pytest==8.4.2 "moto[s3]==5.2.3" ruff==0.17.3 pip-audit==2.10.1
       - name: Lint (ruff)
         # Solo errores graves (sintaxis, nombres indefinidos).
         run: ruff check --select E9,F63,F7,F82 .
