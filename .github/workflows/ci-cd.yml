@@ -22,6 +22,7 @@ env:
   APP_DIR: pipelines/mapainversiones-cali
 
 jobs:
+  
   test:
     name: Lint + tests
     if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
