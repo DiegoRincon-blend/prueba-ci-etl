@@ -1,34 +1,43 @@
-name: Connect to an AWS role from a GitHub repository
+name: Test AWS Connection
 
 on:
+  workflow_dispatch: # Permite ejecutar manualmente con el botón "Run workflow" en GitHub
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
 permissions:
-  id-token: write # Requerido para solicitar el JWT (OIDC)
+  id-token: write # Requerido para generar el token JWT (OIDC)
   contents: read  # Requerido para actions/checkout
 
 jobs:
-  AssumeRoleAndCallIdentity:
+  test-connection:
+    name: Test AWS OIDC Connection
     runs-on: ubuntu-latest
     
-    # Conecta este job al environment 'dev' configurado en GitHub
+    # Conecta con el environment 'dev' configurado en GitHub
     environment:
       name: dev
 
     steps:
-      - name: Git clone the repository
-        uses: actions/checkout@v3
+      - name: Git clone repository
+        uses: actions/checkout@v4
 
-      - name: Configure aws credentials
-        uses: aws-actions/configure-aws-credentials@v1.7.0
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+          role-session-name: GitHubActionsConnectionTest
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Sts GetCallerIdentity
+      - name: Test STS Identity
         run: |
+          echo "=== Verificando identidad del rol asumido ==="
           aws sts get-caller-identity
+
+      # Paso opcional: descomentar si el rol ya tiene permisos para listar S3
+      # - name: Test S3 Access
+      #   run: |
+      #     echo "=== Probando acceso a S3 ==="
+      #     aws s3 ls
