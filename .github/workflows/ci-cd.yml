@@ -1,18 +1,34 @@
-name: diagnostico
+name: Connect to an AWS role from a GitHub repository
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 permissions:
-  id-token: write
-  contents: read
+  id-token: write # Requerido para solicitar el JWT (OIDC)
+  contents: read  # Requerido para actions/checkout
 
 jobs:
-  ver-claims:
+  AssumeRoleAndCallIdentity:
     runs-on: ubuntu-latest
-    environment: dev
+    
+    # Conecta este job al environment 'dev' configurado en GitHub
+    environment:
+      name: dev
+
     steps:
-      - name: Mostrar sub del token
+      - name: Git clone the repository
+        uses: actions/checkout@v3
+
+      - name: Configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v1.7.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Sts GetCallerIdentity
         run: |
-          TOKEN=$(curl -sSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
-          python3 -c "import base64,json,sys; p=sys.argv[1].split('.')[1]; p+='='*(-len(p)%4); d=json.loads(base64.urlsafe_b64decode(p)); print('sub =', d.get('sub')); print('aud =', d.get('aud'))" "$TOKEN"
+          aws sts get-caller-identity
